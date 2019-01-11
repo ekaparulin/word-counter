@@ -43,8 +43,8 @@ Please write an application that will:
 ```
 The application will:
 		- not go to subdirectories
-        - handle only one type of archives
-        - detect text and archives by file suffix
+        - handle only one type of archives (ZIP)
+        - detect text and archives by file suffix (txt, zip)
         - print the histogram as a two column text (filename, word count)
         - no unit tests
         - simple error handling (fail fast)
