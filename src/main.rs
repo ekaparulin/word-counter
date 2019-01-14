@@ -14,17 +14,16 @@ fn main() {
 }
 
 fn run_app() -> bool {
-    let args = Args::new(env::args().collect());
+    let mut args = Args::new(env::args().collect());
     if !args.validate() {
-        args.usage();
         return false;
     };
 
     let working_dir = args.working_dir();
-    let mut processor = Processor::new();
+    let mut processor = Processor::new(args.bin_size(), args.include_zeroes());
     assert_eq!(processor.process(working_dir),true);
 
-    processor.print_histogram();
+    processor.stats().acsii_histogram();
 
     true
 }
