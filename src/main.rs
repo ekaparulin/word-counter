@@ -8,23 +8,30 @@ use processor::Processor;
 
 fn main() {
     ::std::process::exit(match run_app(){
-        true => 0,
-        false => 1
+        Some(()) => 0,
+        None => 1
     });
 }
 
-fn run_app() -> bool {
+fn run_app() -> Option<()> {
     let mut args = Args::new(env::args().collect());
-    if !args.validate() {
-        return false;
+
+    // Validate args and options
+    if None == args.validate() {
+        return None;
     };
 
-    let working_dir = args.working_dir();
-    let mut processor = Processor::new(args.bin_size(), args.include_zeroes());
-    assert_eq!(processor.process(working_dir),true);
+    // Process directory
+    if let Some(working_dir) = args.working_dir() {
+        let mut processor = Processor::new(args.bin_size(),
+                                           args.include_zeroes());
 
-    processor.stats().acsii_histogram();
+        if Some(()) == processor.process(working_dir) {
+            processor.stats().acsii_histogram();
+            return Some(())
+        }
+    }
 
-    true
+    None
 }
 

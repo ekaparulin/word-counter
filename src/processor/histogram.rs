@@ -19,10 +19,7 @@ impl Histogram {
     pub fn add_word_count(&mut self, count: usize) {
 
         // Calculate current bin index
-        let mut bin_index: usize = count / self.bin_size;
-        if count % self.bin_size > 0 {
-            bin_index += 1;
-        }
+        let bin_index: usize = count / self.bin_size;
 
         // Increase counter for the current bin
         {
@@ -31,6 +28,8 @@ impl Histogram {
 
             // increase counter
             *frequency += 1;
+
+            println!("bin={} {} {}", bin_index, count, frequency);
         }
 
         // Fill gaps for unset bins until current bin
@@ -48,11 +47,18 @@ impl Histogram {
         println!("|{:>10}|{:>10}|", "Word count", "Frequency");
         println!("{0}{0:->11}{0:->11}","+");
         for (count, freq) in &self.data {
-            let mut count_label = format!("{}-{}",count*self.bin_size, (count+1)*self.bin_size);
+
+            // Set bin range for label
+            let mut count_label = format!("{}-{}",
+                                          count * self.bin_size,
+                                          (count+1) * self.bin_size);
+
+            // Override label to bin size if bin size is 1
             if self.bin_size == 1 {
                 count_label = format!("{}",count);
             }
 
+            // Print data
             println!("|{count:>10}|{freq:10}|", count=count_label, freq=freq);
         }
         println!("{0}{0:->11}{0:->11}","+");

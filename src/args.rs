@@ -20,7 +20,7 @@ impl Args {
         }
     }
 
-    pub fn validate(&mut self) -> bool {
+    pub fn validate(&mut self) -> Option<()> {
 
 
         let mut opts = Options::new();
@@ -43,7 +43,7 @@ impl Args {
 
         if matches.opt_present("h") {
             self.print_usage(opts);
-            return false;
+            return None;
         }
 
         self.working_dir = if !matches.free.is_empty() {
@@ -54,16 +54,16 @@ impl Args {
 
         if self.working_dir.is_empty() {
             self.print_usage(opts);
-            return false;
+            return None;
         }
 
         if !Path::new(&self.working_dir).is_dir() {
             eprintln!("ERROR: {} is not a directory!", &self.working_dir);
             self.print_usage(opts);
-            return false;
+            return None;
         }
 
-        true
+        Some(())
     }
 
     fn print_usage(&self, opts: Options) {
@@ -71,11 +71,13 @@ impl Args {
         print!("{}", opts.usage(&brief));
     }
 
-    pub fn working_dir(&self) -> &Path {
+    pub fn working_dir(&self) -> Option<&Path> {
         let path = Path::new(&self.working_dir);
-        assert_eq!(path.is_dir(), true);
+        if !path.is_dir() {
+            return None;
+        }
 
-        path
+        Some(path)
     }
 
     pub fn bin_size(&self) -> usize {
@@ -92,7 +94,7 @@ mod tests {
     use super::*;
     use std::env;
 
-    fn validate_args(args: Vec<String>) -> bool {
+    fn validate_args(args: Vec<String>) -> Option<()> {
         let mut my_args = Args::new(args);
         my_args.validate()
     }
@@ -103,7 +105,7 @@ mod tests {
                                         "program_name",
                                         env::temp_dir().to_str().unwrap(),
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, true);
+        assert_eq!(ret, Some(()));
     }
 
     #[test]
@@ -113,7 +115,7 @@ mod tests {
                                         "-z",
                                         env::temp_dir().to_str().unwrap()
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, true);
+        assert_eq!(ret, Some(()));
     }
 
     #[test]
@@ -123,7 +125,7 @@ mod tests {
                                         "-b100",
                                         env::temp_dir().to_str().unwrap()
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, true);
+        assert_eq!(ret, Some(()));
     }
 
     #[test]
@@ -132,6 +134,6 @@ mod tests {
                                         "program_name",
                                         "-h",
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, false);
+        assert_eq!(ret, None);
     }
 }

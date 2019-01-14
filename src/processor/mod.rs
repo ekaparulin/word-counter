@@ -10,8 +10,7 @@ mod histogram;
 
 enum FileType {
     Text,
-    Zip,
-    Unknown
+    Zip
 }
 
 pub struct Processor {
@@ -28,8 +27,7 @@ impl Processor {
         }
     }
 
-    // TODO: Modify error handling using Rust's Option enum
-    pub fn process(&mut self, dir: &Path) -> bool {
+    pub fn process(&mut self, dir: &Path) -> Option<()> {
         if let Ok(entries) = fs::read_dir(dir) {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -48,22 +46,26 @@ impl Processor {
                         }
                     } else {
                         eprintln!("Couldn't get file metadata for {:?}", entry.path());
-                        return false;
+                        return None;
                     }
                 }
             }
         }
 
-        true
+        Some(())
     }
 
     fn process_file(&mut self, path: &Path) {
         match self.file_type(path) {
-            FileType::Text => {
+            Some(FileType::Text) => {
                 // Count words and store the value
-                self.stats.add_word_count(Processor::count_words_in_file(path));
+                if let Some(count) = Processor::count_words_in_file(path) {
+                    self.stats.add_word_count(count);
+                } else {
+                    // Ignore I/O errors if return is None
+                }
             },
-            FileType::Zip => {
+            Some(FileType::Zip) => {
 
                 // Read Zip archive
                 let file = fs::File::open(path).unwrap();
@@ -79,16 +81,19 @@ impl Processor {
                     }
 
                     let mut contents = String::new();
-                    //let read_result = file.read_to_string(&mut contents);
+
                     if let Ok(_) = file.read_to_string(&mut contents) {
                         // Count words and store the value
                         self.stats.add_word_count(Processor::count_words(&contents));
+
+                    } else {
+                        // Ignore Errors if file can't be opened/read
                     }
                 }
 
             },
-            FileType::Unknown => {
-                // Do noting, by design
+            None => {
+                // Do noting for usupported files
             },
         }
     }
@@ -98,19 +103,19 @@ impl Processor {
     }
 
     /* "static" methods */
-    // TODO: Make a better use of Rust enums here
-    fn file_type(&self, path: &Path) -> FileType {
+
+    fn file_type(&self, path: &Path) -> Option<FileType> {
         let file_name = path.file_name().unwrap().to_os_string().into_string().unwrap();
         if file_name.ends_with("txt") {
-            return FileType::Text
+            return Some(FileType::Text)
         } else if file_name.ends_with("zip") {
-            return FileType::Zip
+            return Some(FileType::Zip)
         }
 
-        FileType::Unknown
+        // Return None for unsupported file names
+        None
     }
 
-    // TODO: Handle errors with Rust Option enum rather than with enums
     fn count_words(contents: &String) -> usize {
         let mut count: usize = 0;
 
@@ -122,19 +127,26 @@ impl Processor {
         count
     }
 
-    fn count_words_in_file(path: &Path) -> usize {
+    fn count_words_in_file(path: &Path) -> Option<usize> {
         // Open and read file
         let file = File::open(path);
-        assert_eq!(file.is_ok(), true);
+        if !file.is_ok() {
+            return None;
+        }
+
         let mut buf_reader = BufReader::new(file.unwrap());
         let mut contents = String::new();
         let read = buf_reader.read_to_string(&mut contents);
-        assert_eq!(read.is_ok(), true);
+        if read.is_ok() {
+            return Some(Processor::count_words(&contents));
+        }
 
-        return Processor::count_words(&contents);
+        None
     }
 
 }
+
+/* Tests */
 
 #[cfg(test)]
 mod tests {
