@@ -28,8 +28,6 @@ impl Histogram {
 
             // increase counter
             *frequency += 1;
-
-            println!("bin={} {} {}", bin_index, count, frequency);
         }
 
         // Fill gaps for unset bins until current bin
