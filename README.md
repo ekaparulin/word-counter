@@ -27,7 +27,7 @@ the Cargo.toml file and src directory and type:
 
 To run the binary:
 
-    $ target/debug/word-counter "path to directory"
+    $ ./target/debug/word-counter "path to directory"
 
 This will output a histogram, with binsize of 1, excluding frequencies equal zero.
 
@@ -44,17 +44,17 @@ Note: The options must be specified _after_ the directory path!
 To specify the bin size, you can add the -b parameter, e.g. -b10 for bin size
 of 10 words:
 
-    $ target/debug/word-counter "path to directory" -b10
+    $ ./target/debug/word-counter -b10 "path to directory"
 
 ### include zero frequiencies
 
 To draw a full histogram, including all bins, w/o any frequencies (empty values),
 add the -z flag:
 
-    $ target/debug/word-counter "path to directory" -z
+    $ ./target/debug/word-counter -z "path to directory"
 
 You can combine the flags:
 
-    $ target/debug/word-counter "path to directory" -z -b10
+    $ ./target/debug/word-counter -z -b10 "path to directory"
 
 This will draw full histogram with 10 word bin size.
