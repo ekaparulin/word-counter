@@ -3,6 +3,7 @@ use std::fs;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
+use std::io::Cursor;
 use processor::histogram::Histogram;
 
 extern crate zip;
@@ -45,7 +46,6 @@ impl Processor {
                             self.process_file(entry_path.as_path())
                         }
                     } else {
-                        eprintln!("Couldn't get file metadata for {:?}", entry.path());
                         return None;
                     }
                 }
@@ -61,36 +61,18 @@ impl Processor {
                 // Count words and store the value
                 if let Some(count) = Processor::count_words_in_file(path) {
                     self.stats.add_word_count(count);
-                } else {
-                    // Ignore I/O errors if return is None
                 }
             },
             Some(FileType::Zip) => {
+                let mut file = File::open(path).expect("Couldn't open file");
 
-                // Read Zip archive
-                let file = fs::File::open(path).unwrap();
-                let mut archive = zip::ZipArchive::new(file).unwrap();
-
-                // Process each file in the archive
-                for i in 0..archive.len() {
-                    let mut file = archive.by_index(i).unwrap();
-
-                    // Skip all non *.txt files
-                    if !(&*file.name()).ends_with(".txt") {
-                        continue;
-                    }
-
-                    let mut contents = String::new();
-
-                    if let Ok(_) = file.read_to_string(&mut contents) {
-                        // Count words and store the value
-                        self.stats.add_word_count(Processor::count_words(&contents));
-
-                    } else {
-                        // Ignore Errors if file can't be opened/read
+                // Read archive into a buffer and process
+                let mut buf = Vec::new();
+                if let Ok(_) = file.read_to_end(&mut buf) {
+                    if let Ok(mut zip_file) = zip::ZipArchive::new(Cursor::new(buf.as_slice())) {
+                        self.count_words_in_zipfile(&mut zip_file);
                     }
                 }
-
             },
             None => {
                 // Do noting for usupported files
@@ -98,11 +80,44 @@ impl Processor {
         }
     }
 
+    fn count_words_in_zipfile(&mut self, archive: &mut zip::ZipArchive<Cursor<&[u8]>>) {
+        // Read Zip archive
+
+
+        // Process each file in the archive
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).expect("Couldn't open archived file");
+
+            // Process *.zip files recursively
+            if (&*file.name()).ends_with(".zip") {
+                // Read embedded archive into a buffer
+                let mut buf = Vec::new();
+                if let Ok(_) = file.read_to_end(&mut buf) {
+                    if let Ok(mut zip_file) = zip::ZipArchive::new(Cursor::new(buf.as_slice())) {
+                        self.count_words_in_zipfile(&mut zip_file);
+                        continue;
+                    }
+                }
+
+            }
+
+            // Skip all other files but *.txt
+            if !(&*file.name()).ends_with(".txt") {
+                continue;
+            }
+
+            // Process *.txt files
+            let mut contents = String::new();
+            if let Ok(_) = file.read_to_string(&mut contents) {
+                // Count words and store the value
+                self.stats.add_word_count(Processor::count_words(&contents));
+            }
+        }
+    }
+
     pub fn stats(&self) -> &Histogram {
         &self.stats
     }
-
-    /* "static" methods */
 
     fn file_type(&self, path: &Path) -> Option<FileType> {
         let file_name = path.file_name().unwrap().to_os_string().into_string().unwrap();

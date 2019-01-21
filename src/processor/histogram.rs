@@ -39,7 +39,12 @@ impl Histogram {
         }
     }
 
-    pub fn acsii_histogram(&self) {
+    pub fn acsii_histogram(&self) -> Option<()> {
+
+        if self.data.len() == 0 {
+            eprintln!("No data!");
+            return None
+        }
 
         println!("{0}{0:->11}{0:->11}","+");
         println!("|{:>10}|{:>10}|", "Word count", "Frequency");
@@ -61,5 +66,6 @@ impl Histogram {
         }
         println!("{0}{0:->11}{0:->11}","+");
 
+        Some(())
     }
 }

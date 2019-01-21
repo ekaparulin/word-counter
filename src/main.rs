@@ -27,8 +27,7 @@ fn run_app() -> Option<()> {
                                            args.include_zeroes());
 
         if Some(()) == processor.process(working_dir) {
-            processor.stats().acsii_histogram();
-            return Some(())
+            return processor.stats().acsii_histogram();
         }
     }
 
