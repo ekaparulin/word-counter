@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::result;
+type Result<T> = result::Result<T, &'static str>;
 
 pub struct Histogram {
     data: BTreeMap<usize, usize>,
@@ -39,11 +41,10 @@ impl Histogram {
         }
     }
 
-    pub fn acsii_histogram(&self) -> Option<()> {
+    pub fn acsii_histogram(&self) -> Result<()> {
 
         if self.data.len() == 0 {
-            eprintln!("No data!");
-            return None
+            return Err("ERROR: No data in histogram! (Empty directory or no suitable files found)");
         }
 
         println!("{0}{0:->11}{0:->11}","+");
@@ -66,6 +67,6 @@ impl Histogram {
         }
         println!("{0}{0:->11}{0:->11}","+");
 
-        Some(())
+        Ok(())
     }
 }

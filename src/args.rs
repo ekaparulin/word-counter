@@ -1,37 +1,42 @@
 use std::path::Path;
 
+
 extern crate getopts;
 use self::getopts::Options;
 
+use std::result;
+type Result<T> = result::Result<T, String>;
+
 pub struct Args {
     args: Vec<String>,
+    opts: Options,
     working_dir: String,
     bin_size: usize,
     includes_zeroes: bool
 }
 
 impl Args {
-    pub fn new(args: Vec<String>) -> Args {
-        Args {
+    pub fn new(args: Vec<String>) -> Result<Args> {
+        let mut args = Args {
             args,
+            opts: Options::new(),
             working_dir: String::new(),
             bin_size: 1,
             includes_zeroes: false
-        }
+        };
+        args.validate()?;
+
+        Ok(args)
+
     }
 
-    pub fn validate(&mut self) -> Option<()> {
+    fn validate(&mut self) -> Result<()> {
 
+        self.opts.optopt("b", "bin-size", "bin size (default=1)","");
+        self.opts.optflag("z", "with-zeroes", "print out bins w/ zero frequencies");
+        self.opts.optflag("h", "help", "print this help message");
 
-        let mut opts = Options::new();
-        opts.optopt("b", "bin-size", "bin size (default=1)","");
-        opts.optflag("z", "with-zeroes", "print out bins w/ zero frequencies");
-        opts.optflag("h", "help", "print this help message");
-
-        let matches = match opts.parse(&self.args[1..]) {
-            Ok(m) => { m }
-            Err(f) => { panic!(f.to_string()) }
-        };
+        let matches = self.opts.parse(&self.args[1..]).unwrap();
 
         if let Some(bin_size) = matches.opt_str("b") {
             self.bin_size = bin_size.parse().unwrap();
@@ -42,8 +47,7 @@ impl Args {
         }
 
         if matches.opt_present("h") {
-            self.print_usage(opts);
-            return None;
+            return Err(self.usage_message());
         }
 
         self.working_dir = if !matches.free.is_empty() {
@@ -52,32 +56,33 @@ impl Args {
             String::new()
         };
 
+        // Check if working dir is valid
+        match self.working_dir() {
+            Err(e) => return Err(e),
+            Ok(_) => Ok(())
+        }
+
+    }
+
+    fn usage_message(&self) -> String {
+        format!("{}", self.opts.usage(
+            &format!("Usage: {} directory_path [options]", &self.args[0])))
+    }
+
+    pub fn working_dir(&self) -> Result<&Path> {
+
         if self.working_dir.is_empty() {
-            self.print_usage(opts);
-            return None;
+            return Err(format!("ERROR: Directory '{}' is empty!\n{}",
+                               self.working_dir, self.usage_message()));
         }
 
-        if !Path::new(&self.working_dir).is_dir() {
-            eprintln!("ERROR: {} is not a directory!", &self.working_dir);
-            self.print_usage(opts);
-            return None;
-        }
-
-        Some(())
-    }
-
-    fn print_usage(&self, opts: Options) {
-        let brief = format!("Usage: {} directory_path [options]", &self.args[0]);
-        print!("{}", opts.usage(&brief));
-    }
-
-    pub fn working_dir(&self) -> Option<&Path> {
         let path = Path::new(&self.working_dir);
         if !path.is_dir() {
-            return None;
+            return Err(format!("ERROR: '{}' is not a directory!\n{}",
+                               self.working_dir, self.usage_message()));
         }
 
-        Some(path)
+        Ok(path)
     }
 
     pub fn bin_size(&self) -> usize {
@@ -94,46 +99,41 @@ mod tests {
     use super::*;
     use std::env;
 
-    fn validate_args(args: Vec<String>) -> Option<()> {
-        let mut my_args = Args::new(args);
-        my_args.validate()
-    }
-
     #[test]
     fn has_input_directory() {
-        let ret = validate_args([
+        let ret = Args::new([
                                         "program_name",
                                         env::temp_dir().to_str().unwrap(),
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, Some(()));
+        assert!(ret.is_ok());
     }
 
     #[test]
     fn include_zeroes() {
-        let ret = validate_args([
+        let ret = Args::new([
                                         "program_name",
                                         "-z",
                                         env::temp_dir().to_str().unwrap()
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, Some(()));
+        assert!(ret.is_ok());
     }
 
     #[test]
     fn bin_size() {
-        let ret = validate_args([
+        let ret = Args::new([
                                         "program_name",
                                         "-b100",
                                         env::temp_dir().to_str().unwrap()
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, Some(()));
+        assert!(ret.is_ok());
     }
 
     #[test]
     fn help() {
-        let ret = validate_args([
+        let ret = Args::new([
                                         "program_name",
                                         "-h",
                                     ].iter().map(|&s| s.into()).collect());
-        assert_eq!(ret, None);
+        assert!(ret.is_err());
     }
 }

@@ -5,10 +5,13 @@ use std::io::BufReader;
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::collections::HashSet;
-use processor::histogram::Histogram;
 
+use processor::histogram::Histogram;
 extern crate zip;
 mod histogram;
+
+use std::result;
+type Result<T> = result::Result<T, String>;
 
 enum FileType {
     Text,
@@ -29,62 +32,62 @@ impl Processor {
         }
     }
 
-    pub fn process(&mut self, dir: &Path) -> Option<()> {
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let entry_path = entry.path();
+    pub fn process(&mut self, dir: &Path) -> Result<()> {
+         match fs::read_dir(dir) {
+             Ok(res) => {
+                 for read_result in res {
+                     if read_result.is_err() {
+                         return Err(format!("ERROR: Couldn't read directory {}", dir.to_str().unwrap()));
+                     }
 
-                    if let Ok(metadata) = entry.metadata() {
+                     let entry = &read_result.unwrap();
+                     let entry_path = entry.path();
+                     let metadata = entry.metadata().unwrap();
 
-                        // Recurse in directories
-                        if metadata.is_dir() {
-                            self.process(entry_path.as_path());
-                        }
+                     // Recurse in directories
+                     if metadata.is_dir() {
+                         self.process(entry_path.as_path())?;
+                     } else if metadata.is_file() { // Process files
+                         self.process_file(entry_path.as_path())?;
+                     }
+                 }
+             },
+             Err(e) => return Err(format!("ERROR: '{}': {}", dir.to_str().unwrap(), e.to_string()))
+         }
 
-                        // Process files
-                        if metadata.is_file() {
-                            self.process_file(entry_path.as_path())
-                        }
-                    } else {
-                        return None;
-                    }
-                }
-            }
-        }
-
-        Some(())
+        Ok(())
     }
 
-    fn process_file(&mut self, path: &Path) {
+    fn process_file(&mut self, path: &Path) -> Result<()> {
         match self.file_type(path) {
             Some(FileType::Text) => {
                 // Count words and store the value
-                if let Some(count) = Processor::count_words_in_file(path) {
-                    self.stats.add_word_count(count);
-                }
+                self.count_words_in_file(path)
             },
             Some(FileType::Zip) => {
-                let mut file = File::open(path).expect("Couldn't open file");
-
-                // Read archive into a buffer and process
-                let mut buf = Vec::new();
-                if let Ok(_) = file.read_to_end(&mut buf) {
-                    if let Ok(mut zip_file) = zip::ZipArchive::new(Cursor::new(buf.as_slice())) {
-                        self.count_words_in_zipfile(&mut zip_file);
-                    }
+                match File::open(path) {
+                    Ok(mut file) => {
+                        // Read archive into a buffer and process
+                        let mut buf = Vec::new();
+                        if let Ok(_) = file.read_to_end(&mut buf) {
+                            if let Ok(mut zip_file) = zip::ZipArchive::new(Cursor::new(buf.as_slice())) {
+                                return self.count_words_in_zipfile(&mut zip_file);
+                            }
+                        }
+                        return Ok(())
+                    },
+                    Err(e) => return Err(format!("ERROR: '{}': {}",
+                                                 path.file_name().unwrap().to_os_string().into_string().unwrap(),
+                                                 e.to_string()))
                 }
             },
             None => {
-                // Do noting for usupported files
+                Ok(())
             },
         }
     }
 
-    fn count_words_in_zipfile(&mut self, archive: &mut zip::ZipArchive<Cursor<&[u8]>>) {
-        // Read Zip archive
-
-
+    fn count_words_in_zipfile(&mut self, archive: &mut zip::ZipArchive<Cursor<&[u8]>>) -> Result<()>{
         // Process each file in the archive
         for i in 0..archive.len() {
             let mut file = archive.by_index(i).expect("Couldn't open archived file");
@@ -95,8 +98,7 @@ impl Processor {
                 let mut buf = Vec::new();
                 if let Ok(_) = file.read_to_end(&mut buf) {
                     if let Ok(mut zip_file) = zip::ZipArchive::new(Cursor::new(buf.as_slice())) {
-                        self.count_words_in_zipfile(&mut zip_file);
-                        continue;
+                        self.count_words_in_zipfile(&mut zip_file)?;
                     }
                 }
 
@@ -114,6 +116,8 @@ impl Processor {
                 self.stats.add_word_count(Processor::count_words(&contents));
             }
         }
+
+        Ok(())
     }
 
     pub fn stats(&self) -> &Histogram {
@@ -145,22 +149,28 @@ impl Processor {
         words.len()
     }
 
-    fn count_words_in_file(path: &Path) -> Option<usize> {
+    fn count_words_in_file(&mut self, path: &Path) -> Result<()> {
         // Open and read file
         let file = File::open(path);
-        if !file.is_ok() {
-            return None;
+        if file.is_err() {
+            return Err(format!("ERROR: '{}': {}",
+                               path.file_name().unwrap().to_os_string().into_string().unwrap(),
+                               file.err().unwrap()))
         }
 
         let mut buf_reader = BufReader::new(file.unwrap());
         let mut contents = String::new();
-        let read = buf_reader.read_to_string(&mut contents);
-        if read.is_ok() {
-            return Some(Processor::count_words(&contents));
-        }
 
-        None
-    }
+        match buf_reader.read_to_string(&mut contents) {
+            Ok(_) => {
+                self.stats.add_word_count(Processor::count_words(&contents));
+                return Ok(())
+            },
+            Err(e) => return Err(format!("ERROR: '{}': {}",
+                                  path.file_name().unwrap().to_os_string().into_string().unwrap(),
+                                  e.to_string()))
+        }
+  }
 
 }
 
@@ -173,7 +183,7 @@ mod tests {
 
     #[test]
     fn count_words() {
-        assert_eq!(Processor::count_words(&String::from("a b c")),3);
+        assert_eq!(Processor::count_words(&String::from("a b c a")),3);
     }
 
     #[test]
@@ -181,6 +191,6 @@ mod tests {
         let mut proc = Processor::new(1, false);
         let tmp_path = env::temp_dir().clone();
         let work_dir = Path::new(&tmp_path);
-        proc.process(&work_dir);
+        assert!(proc.process(&work_dir).is_ok());
     }
 }
