@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::prelude::*;
 use std::io::Cursor;
+use std::collections::HashSet;
 use processor::histogram::Histogram;
 
 extern crate zip;
@@ -132,14 +133,16 @@ impl Processor {
     }
 
     fn count_words(contents: &String) -> usize {
-        let mut count: usize = 0;
+        let mut words = HashSet::new();
 
         // Count words, iterating over white spaces
-        for _ in contents.split_whitespace() {
-            count+=1;
+        // using hash set we'll count only unique words
+        for word in contents.split_whitespace() {
+            words.insert(word);
         }
 
-        count
+        // return hash set size
+        words.len()
     }
 
     fn count_words_in_file(path: &Path) -> Option<usize> {
